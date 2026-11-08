@@ -44,8 +44,7 @@
     <string name="public_running">公网 WebDAV 已通过认证探测</string>
     <string name="public_reconnecting">公网连接已断开，正在重连</string>
     <string name="public_error">公网连接异常，局域网共享不受影响</string>
-    <string name="native_frp_guide">在 CHMLFRP 面板复制原生配置，或根据 VPS 上 frps 的设置生成官方 TOML 配置。粘贴或导入后，LinkDisk 会自动识别隧道和公网地址。</string>
-    <string name="open_chmlfrp_panel">打开 CHMLFRP 面板（推荐）</string>
+    <string name="native_frp_guide">根据 FRP 服务提供方或 VPS 上 frps 的设置生成官方 TOML 配置。粘贴或导入后，LinkDisk 会自动识别隧道和公网地址。</string>
     <string name="frpc_config">完整原生 frpc 配置</string>
     <string name="frpc_config_hint">支持 TOML 及带 [common] 的旧版 INI。配置中的 localPort 必须与连接设置中的端口一致，配置会加密保存。</string>
     <string name="public_url">公网 WebDAV URL</string>
