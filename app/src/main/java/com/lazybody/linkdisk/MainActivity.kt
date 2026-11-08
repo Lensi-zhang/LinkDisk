@@ -108,6 +108,9 @@ class MainActivity : AppCompatActivity() {
         binding.openChmlfrpButton.setOnClickListener {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(CHMLFRP_PANEL_URL)))
         }
+        binding.developerGithubButton.setOnClickListener {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PROJECT_URL)))
+        }
         binding.pasteConfigButton.setOnClickListener { pasteConfig() }
         binding.importConfigButton.setOnClickListener { configPicker.launch(arrayOf("*/*")) }
         binding.selectTunnelButton.setOnClickListener { showTunnelPicker() }
@@ -526,6 +529,7 @@ class MainActivity : AppCompatActivity() {
 
     private companion object {
         const val CHMLFRP_PANEL_URL = "https://panel.chmlfrp.net/"
+        const val PROJECT_URL = "https://github.com/Lensi-zhang/LinkDisk"
         const val MIN_PUBLIC_PASSWORD_LENGTH = 16
         const val MAX_CONFIG_BYTES = 256 * 1024
     }

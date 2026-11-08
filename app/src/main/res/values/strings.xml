@@ -71,4 +71,7 @@
     <string name="config_import_encoding">配置文件必须使用 UTF-8 编码</string>
     <string name="config_import_failed">无法读取配置文件，请重试</string>
     <string name="config_candidate_required">请先选择要用于 WebDAV 的隧道</string>
+    <string name="developer_title">开发者</string>
+    <string name="developer_name" translatable="false">Lensi-zhang</string>
+    <string name="developer_github">查看 GitHub 项目</string>
 </resources>
