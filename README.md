@@ -2,15 +2,20 @@
 
 LinkDisk 是一款原生 Kotlin Android WebDAV 文件共享应用，可通过局域网或官方 FRP 隧道分享手机中的文档、照片和下载内容。
 
-**当前版本：1.2** · **最低系统：Android 7.0（API 24）**
+**当前版本：1.3** · **最低系统：Android 7.0（API 24）**
 
 ## 下载
 
-[从 GitHub Releases 下载 LinkDisk 1.2 APK](https://github.com/Lensi-zhang/LinkDisk/releases/download/v1.2/LinkDisk-1.2.apk)
+[从 GitHub Releases 下载 LinkDisk 1.3 APK](https://github.com/Lensi-zhang/LinkDisk/releases/download/v1.3/LinkDisk-1.3.apk)
 
-SHA-256：`B397D2A1E5EE710121D74480AB5643EEE4D50C95D997B6E6942AADB271621942`
+SHA-256：`BE133462759A7652F73DD8C2BFA13A8CD59FD510B263251FA07D9860DA53E14A`
 
 安装前请核对以上校验值。Android 可能需要在系统设置中允许当前浏览器或文件管理器安装未知来源应用。
+
+## 1.3 更新说明
+
+- 应用包名和 `applicationId` 统一为 `com.linkdisk.app`，移除其他项目的命名空间残留。
+- **由于应用标识变更，1.3 无法覆盖安装旧版，会与旧版作为两个独立应用共存。** 安装前请记录需要保留的配置；旧版的共享目录授权、WebDAV 认证和 FRP 配置不会自动迁移。
 
 ## 1.2 更新说明
 
