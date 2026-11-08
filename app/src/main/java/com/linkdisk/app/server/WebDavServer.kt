@@ -1,15 +1,14 @@
 package com.linkdisk.app.server
 
-import android.content.Context
 import android.net.Uri
 import android.util.Base64
 import android.util.Log
-import androidx.documentfile.provider.DocumentFile
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.Response.Status
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
@@ -23,16 +22,12 @@ import java.util.UUID
 import kotlin.math.min
 
 class WebDavServer(
-    context: Context,
-    treeUri: String,
+    rootDirectory: File,
     port: Int,
     private val username: String,
     private val password: String,
 ) : NanoHTTPD(BIND_ADDRESS, port) {
-    private val resolver = context.applicationContext.contentResolver
-    private val root = requireNotNull(DocumentFile.fromTreeUri(context.applicationContext, Uri.parse(treeUri))) {
-        "无法访问共享目录"
-    }
+    private val root = rootDirectory
 
     override fun serve(session: IHTTPSession): Response {
         return try {
@@ -56,7 +51,7 @@ class WebDavServer(
             textResponse(Status.BAD_REQUEST, error.message ?: "请求路径无效")
         } catch (error: SecurityException) {
             Log.w(TAG, "WebDAV permission denied", error)
-            textResponse(Status.FORBIDDEN, "共享目录授权已失效，请在 LinkDisk 中重新选择")
+            textResponse(Status.FORBIDDEN, "没有访问该路径的存储权限")
         } catch (error: Exception) {
             Log.e(TAG, "WebDAV request failed: ${session.method} ${session.uri}", error)
             textResponse(Status.INTERNAL_ERROR, error.message ?: "服务器处理请求失败")
@@ -87,13 +82,13 @@ class WebDavServer(
     }
 
     private fun propFind(segments: List<String>, depth: String?): Response {
-        val document = resolve(segments) ?: return textResponse(Status.NOT_FOUND, "路径不存在")
+        val file = resolve(segments) ?: return textResponse(Status.NOT_FOUND, "路径不存在")
         val xml = StringBuilder(XML_HEADER)
         xml.append("<D:multistatus xmlns:D=\"DAV:\">")
-        appendProperty(xml, document, segments)
-        if (document.isDirectory && depth?.trim() != "0") {
-            document.listFiles().sortedBy { it.name?.lowercase(Locale.ROOT) }.forEach { child ->
-                appendProperty(xml, child, segments + (child.name ?: "未命名"))
+        appendProperty(xml, file, segments)
+        if (file.isDirectory && depth?.trim() != "0") {
+            file.listFiles().orEmpty().sortedBy { it.name.lowercase(Locale.ROOT) }.forEach { child ->
+                appendProperty(xml, child, segments + child.name)
             }
         }
         xml.append("</D:multistatus>")
@@ -104,30 +99,31 @@ class WebDavServer(
         )
     }
 
-    private fun appendProperty(xml: StringBuilder, document: DocumentFile, segments: List<String>) {
-        val isDirectory = document.isDirectory
+    private fun appendProperty(xml: StringBuilder, file: File, segments: List<String>) {
+        val isDirectory = file.isDirectory
         val href = buildString {
             append('/')
             append(segments.joinToString("/") { Uri.encode(it) })
             if (isDirectory && segments.isNotEmpty()) append('/')
         }
-        val modified = document.lastModified()
+        val modified = file.lastModified()
+        val displayName = if (segments.isEmpty()) "LinkDisk" else file.name
         xml.append("<D:response>")
         xml.append("<D:href>${href.xmlEscape()}</D:href>")
         xml.append("<D:propstat><D:prop>")
-        xml.append("<D:displayname>${(document.name ?: "LinkDisk").xmlEscape()}</D:displayname>")
+        xml.append("<D:displayname>${displayName.xmlEscape()}</D:displayname>")
         if (modified > 0) {
             xml.append("<D:getlastmodified>${rfc1123Date(modified)}</D:getlastmodified>")
             xml.append("<D:creationdate>${iso8601Date(modified)}</D:creationdate>")
         }
-        xml.append("<D:getetag>\"${modified}-${document.length()}\"</D:getetag>")
+        xml.append("<D:getetag>\"${modified}-${file.length()}\"</D:getetag>")
         if (isDirectory) {
             xml.append("<D:resourcetype><D:collection/></D:resourcetype>")
             xml.append("<D:getcontenttype>httpd/unix-directory</D:getcontenttype>")
         } else {
             xml.append("<D:resourcetype/>")
-            xml.append("<D:getcontentlength>${document.length()}</D:getcontentlength>")
-            xml.append("<D:getcontenttype>${mimeType(document).xmlEscape()}</D:getcontenttype>")
+            xml.append("<D:getcontentlength>${file.length()}</D:getcontentlength>")
+            xml.append("<D:getcontenttype>${mimeType(file).xmlEscape()}</D:getcontenttype>")
         }
         xml.append("<D:supportedlock><D:lockentry><D:lockscope><D:exclusive/></D:lockscope>")
         xml.append("<D:locktype><D:write/></D:locktype></D:lockentry></D:supportedlock>")
@@ -144,9 +140,9 @@ class WebDavServer(
     }
 
     private fun download(segments: List<String>, rangeHeader: String?): Response {
-        val document = resolve(segments) ?: return textResponse(Status.NOT_FOUND, "文件不存在")
-        if (document.isDirectory) return textResponse(Status.METHOD_NOT_ALLOWED, "目录不能作为文件下载")
-        val length = document.length()
+        val file = resolve(segments) ?: return textResponse(Status.NOT_FOUND, "文件不存在")
+        if (file.isDirectory) return textResponse(Status.METHOD_NOT_ALLOWED, "目录不能作为文件下载")
+        val length = file.length()
         val range = if (rangeHeader.isNullOrBlank()) null else parseRange(rangeHeader, length)
         if (!rangeHeader.isNullOrBlank() && range == null) {
             return textResponse(Status.RANGE_NOT_SATISFIABLE, "请求范围无效").apply {
@@ -155,13 +151,11 @@ class WebDavServer(
         }
         val start = range?.start ?: 0L
         val contentLength = if (range == null) length else range.end - range.start + 1
-        val asset = resolver.openAssetFileDescriptor(document.uri, "r")
-            ?: return textResponse(Status.INTERNAL_ERROR, "无法打开文件")
-        val input = asset.createInputStream()
+        val input = FileInputStream(file)
         skipFully(input, start)
         val boundedInput = BoundedInputStream(input, contentLength)
         val status = if (range == null) Status.OK else Status.PARTIAL_CONTENT
-        return newFixedLengthResponse(status, mimeType(document), boundedInput, contentLength).apply {
+        return newFixedLengthResponse(status, mimeType(file), boundedInput, contentLength).apply {
             addHeader("Accept-Ranges", "bytes")
             if (range != null) addHeader("Content-Range", "bytes ${range.start}-${range.end}/$length")
         }
@@ -180,22 +174,21 @@ class WebDavServer(
         if (temporaryPath == null && contentLength(session) > 0) {
             return textResponse(Status.BAD_REQUEST, "上传内容为空")
         }
-        val target = existing ?: parent.createFile(mimeTypeFromName(name), name)
-            ?: return textResponse(Status.INTERNAL_ERROR, "无法创建文件")
-        resolver.openOutputStream(target.uri, "wt")?.use { output ->
+        val target = existing ?: File(parent, name)
+        FileOutputStream(target).use { output ->
             if (temporaryPath != null) {
                 FileInputStream(File(temporaryPath)).use { input -> input.copyTo(output) }
             }
-        } ?: return textResponse(Status.INTERNAL_ERROR, "无法写入文件")
+        }
         return emptyResponse(if (existing == null) Status.CREATED else Status.NO_CONTENT)
     }
 
     private fun makeCollection(segments: List<String>): Response {
-        val name = segments.lastOrNull() ?: return textResponse(Status.METHOD_NOT_ALLOWED, "共享根目录已存在")
+        if (segments.isEmpty()) return textResponse(Status.METHOD_NOT_ALLOWED, "共享根目录已存在")
         if (resolve(segments) != null) return textResponse(Status.METHOD_NOT_ALLOWED, "同名文件或目录已存在")
         val parent = resolve(segments.dropLast(1)) ?: return textResponse(Status.CONFLICT, "上级目录不存在")
         if (!parent.isDirectory) return textResponse(Status.CONFLICT, "上级路径不是目录")
-        return if (parent.createDirectory(name) != null) {
+        return if (File(parent, segments.last()).mkdir()) {
             emptyResponse(Status.CREATED)
         } else {
             textResponse(Status.INTERNAL_ERROR, "无法创建目录")
@@ -204,8 +197,8 @@ class WebDavServer(
 
     private fun delete(segments: List<String>): Response {
         if (segments.isEmpty()) return textResponse(Status.FORBIDDEN, "不能删除共享根目录")
-        val document = resolve(segments) ?: return textResponse(Status.NOT_FOUND, "路径不存在")
-        return if (document.delete()) {
+        val file = resolve(segments) ?: return textResponse(Status.NOT_FOUND, "路径不存在")
+        return if (file.deleteRecursively()) {
             emptyResponse(Status.NO_CONTENT)
         } else {
             textResponse(Status.INTERNAL_ERROR, "删除失败")
@@ -235,36 +228,40 @@ class WebDavServer(
             ?: return textResponse(Status.CONFLICT, "目标上级目录不存在")
         if (!parent.isDirectory) return textResponse(Status.CONFLICT, "目标上级路径不是目录")
         val existing = resolve(destinationSegments)
-        val overwrite = header(session, "Overwrite")?.equals("F", ignoreCase = true) == false
+        val overwrite = header(session, "Overwrite")?.equals("F", ignoreCase = true) != true
         if (existing != null) {
             if (!overwrite) return textResponse(Status.PRECONDITION_FAILED, "目标已存在")
-            if (!existing.delete()) return textResponse(Status.INTERNAL_ERROR, "无法覆盖目标")
+            if (!existing.deleteRecursively()) return textResponse(Status.INTERNAL_ERROR, "无法覆盖目标")
         }
 
-        val copied = copyDocument(source, parent, destinationName)
-            ?: return textResponse(Status.INTERNAL_ERROR, "复制失败")
-        if (move && !source.delete()) {
-            copied.delete()
+        val target = File(parent, destinationName)
+        if (move && source.renameTo(target)) {
+            return emptyResponse(if (existing == null) Status.CREATED else Status.NO_CONTENT)
+        }
+        if (!copyFile(source, target)) {
+            target.deleteRecursively()
+            return textResponse(Status.INTERNAL_ERROR, "复制失败")
+        }
+        if (move && !source.deleteRecursively()) {
+            target.deleteRecursively()
             return textResponse(Status.INTERNAL_ERROR, "移动时无法删除源文件")
         }
         return emptyResponse(if (existing == null) Status.CREATED else Status.NO_CONTENT)
     }
 
-    private fun copyDocument(source: DocumentFile, parent: DocumentFile, name: String): DocumentFile? {
+    private fun copyFile(source: File, target: File): Boolean {
         if (source.isDirectory) {
-            val directory = parent.createDirectory(name) ?: return null
-            source.listFiles().forEach { child ->
-                val childName = child.name ?: return null
-                copyDocument(child, directory, childName) ?: return null
+            if (!target.mkdir()) return false
+            return source.listFiles().orEmpty().all { child ->
+                copyFile(child, File(target, child.name))
             }
-            return directory
         }
-        val target = parent.createFile(source.type ?: mimeTypeFromName(name), name) ?: return null
-        resolver.openInputStream(source.uri)?.use { input ->
-            resolver.openOutputStream(target.uri, "wt")?.use { output -> input.copyTo(output) }
-                ?: return null
-        } ?: return null
-        return target
+        return runCatching {
+            FileInputStream(source).use { input ->
+                FileOutputStream(target).use { output -> input.copyTo(output) }
+            }
+            true
+        }.getOrDefault(false)
     }
 
     private fun lock(segments: List<String>): Response {
@@ -282,19 +279,16 @@ class WebDavServer(
         }
     }
 
-    private fun resolve(segments: List<String>): DocumentFile? {
-        var current: DocumentFile = root
+    private fun resolve(segments: List<String>): File? {
+        var current: File = root
         for (segment in segments) {
-            current = current.findFile(segment) ?: return null
+            current = File(current, segment)
         }
-        return current
+        return current.takeIf { it.exists() }
     }
 
-    private fun mimeType(document: DocumentFile): String =
-        document.type ?: document.name?.let(::mimeTypeFromName) ?: "application/octet-stream"
-
-    private fun mimeTypeFromName(name: String): String =
-        URLConnection.guessContentTypeFromName(name) ?: "application/octet-stream"
+    private fun mimeType(file: File): String =
+        URLConnection.guessContentTypeFromName(file.name) ?: "application/octet-stream"
 
     private fun parseRange(value: String, length: Long): ByteRange? {
         if (length <= 0) return null

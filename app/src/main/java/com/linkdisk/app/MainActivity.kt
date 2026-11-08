@@ -8,19 +8,20 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
-import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.linkdisk.app.data.LinkDiskPreferences
+import com.linkdisk.app.data.StorageAccess
 import com.linkdisk.app.databinding.ActivityMainBinding
 import com.linkdisk.app.server.FrpcConfigInspector
 import com.linkdisk.app.server.FrpcInspectionResult
@@ -33,10 +34,12 @@ import com.linkdisk.app.server.WebDavMountGuide
 import com.linkdisk.app.server.WebDavService
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -49,10 +52,15 @@ class MainActivity : AppCompatActivity() {
     private var applyingTunnel = false
     private var currentMountGuide: WebDavMountGuide? = null
     private var expandedGuidePlatform: GuidePlatform? = null
+    private var pendingStorageAction = PendingStorageAction.NONE
 
-    private val folderPicker = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        if (uri != null) persistFolder(uri)
-    }
+    private val legacyStoragePermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { onStoragePermissionResult() }
+
+    private val allFilesAccess = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { onStoragePermissionResult() }
 
     private val configPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) importConfig(uri)
@@ -92,10 +100,14 @@ class MainActivity : AppCompatActivity() {
         super.onStop()
     }
 
+    override fun onResume() {
+        super.onResume()
+        renderFolder()
+    }
+
     private fun bindActions() {
-        binding.chooseFolderButton.setOnClickListener {
-            folderPicker.launch(preferences.sharedTreeUri?.let(Uri::parse))
-        }
+        binding.shareRootButton.setOnClickListener { showRootWarning() }
+        binding.pickFolderButton.setOnClickListener { pickSharedFolder() }
         binding.serverButton.setOnClickListener {
             if (currentState.status == ServerStatus.RUNNING) {
                 WebDavService.stop(this)
@@ -359,43 +371,149 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, R.string.address_copied, Toast.LENGTH_SHORT).show()
     }
 
-    private fun persistFolder(uri: Uri) {
-        val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-        try {
-            contentResolver.takePersistableUriPermission(uri, flags)
-            val previous = preferences.sharedTreeUri
-            if (!previous.isNullOrBlank() && previous != uri.toString()) {
-                runCatching {
-                    contentResolver.releasePersistableUriPermission(Uri.parse(previous), flags)
+    private enum class PendingStorageAction { NONE, SHARE_ROOT, PICK_FOLDER }
+
+    private fun showRootWarning() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.root_warning_title)
+            .setMessage(R.string.root_warning_message)
+            .setPositiveButton(R.string.root_warning_confirm) { _, _ ->
+                if (StorageAccess.hasAccess(this)) {
+                    applyRootScope()
+                } else {
+                    pendingStorageAction = PendingStorageAction.SHARE_ROOT
+                    requestStorageAccess()
                 }
             }
-            preferences.sharedTreeUri = uri.toString()
-            renderFolder()
-        } catch (error: SecurityException) {
-            Toast.makeText(this, R.string.folder_permission_failed, Toast.LENGTH_LONG).show()
+            .setNegativeButton(R.string.root_warning_cancel) { _, _ ->
+                Toast.makeText(this, R.string.root_warning_cancelled, Toast.LENGTH_LONG).show()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun pickSharedFolder() {
+        if (!StorageAccess.hasAccess(this)) {
+            pendingStorageAction = PendingStorageAction.PICK_FOLDER
+            requestStorageAccess()
+        } else {
+            showDirectoryPicker(StorageAccess.sharedRoot())
+        }
+    }
+
+    private fun onStoragePermissionResult() {
+        val action = pendingStorageAction
+        pendingStorageAction = PendingStorageAction.NONE
+        renderFolder()
+        if (!StorageAccess.hasAccess(this)) return
+        when (action) {
+            PendingStorageAction.SHARE_ROOT -> applyRootScope()
+            PendingStorageAction.PICK_FOLDER -> showDirectoryPicker(StorageAccess.sharedRoot())
+            PendingStorageAction.NONE -> Unit
+        }
+    }
+
+    private fun applyRootScope() {
+        preferences.sharedDirectory = StorageAccess.sharedRoot().absolutePath
+        renderFolder()
+        Toast.makeText(this, R.string.root_scope_selected, Toast.LENGTH_LONG).show()
+    }
+
+    private fun showDirectoryPicker(start: File) {
+        lateinit var show: (File) -> Unit
+        show = { directory ->
+            val root = StorageAccess.sharedRoot()
+            val children = directory.listFiles()
+                .orEmpty()
+                .filter { it.isDirectory && it.canRead() }
+                .sortedBy { it.name.lowercase(Locale.ROOT) }
+            val entries = buildList {
+                if (directory != root) {
+                    directory.parentFile?.let { add(getString(R.string.picker_parent) to it) }
+                }
+                children.forEach { add(it.name to it) }
+            }
+            MaterialAlertDialogBuilder(this)
+                .setTitle(
+                    directory.absolutePath
+                        .removePrefix(root.absolutePath)
+                        .ifBlank { getString(R.string.storage_root_name) },
+                )
+                .setItems(entries.map { it.first }.toTypedArray()) { _, which ->
+                    show(entries[which].second)
+                }
+                .setPositiveButton(R.string.picker_select_current) { _, _ ->
+                    if (directory.absolutePath == root.absolutePath) {
+                        showRootWarning()
+                    } else {
+                        preferences.sharedDirectory = directory.absolutePath
+                        renderFolder()
+                    }
+                }
+                .setNegativeButton(R.string.root_warning_cancel, null)
+                .show()
+        }
+        show(start)
+    }
+
+    private fun requestStorageAccess() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val appPermission = Intent(
+                Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                Uri.parse("package:$packageName"),
+            )
+            val opened = runCatching { allFilesAccess.launch(appPermission) }.isSuccess ||
+                runCatching {
+                    allFilesAccess.launch(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+                }.isSuccess
+            if (!opened) {
+                Toast.makeText(this, R.string.storage_permission_failed, Toast.LENGTH_LONG).show()
+            }
+        } else {
+            legacyStoragePermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
     }
 
     private fun renderFolder() {
-        val tree = preferences.sharedTreeUri
-        if (tree.isNullOrBlank()) {
-            binding.folderName.setText(R.string.folder_not_selected)
-            binding.folderUri.setText(R.string.folder_hint)
-            binding.chooseFolderButton.setText(R.string.choose_folder)
-            return
+        val granted = StorageAccess.hasAccess(this)
+        val selected = preferences.sharedDirectory?.let(::File)
+        when {
+            selected == null -> {
+                binding.folderName.setText(R.string.folder_not_selected)
+                binding.folderUri.setText(R.string.storage_permission_hint)
+            }
+            !StorageAccess.isWithinRoot(selected) || !selected.isDirectory -> {
+                preferences.sharedDirectory = null
+                binding.folderName.setText(R.string.folder_not_selected)
+                binding.folderUri.setText(R.string.shared_directory_invalid)
+            }
+            selected.absolutePath == StorageAccess.sharedRoot().absolutePath -> {
+                binding.folderName.setText(R.string.storage_root_name)
+                binding.folderUri.text = getString(
+                    R.string.storage_root_path,
+                    selected.absolutePath,
+                )
+            }
+            else -> {
+                binding.folderName.text = selected.name
+                binding.folderUri.text = getString(R.string.shared_folder_path, selected.absolutePath)
+            }
         }
-        val uri = Uri.parse(tree)
-        binding.folderName.text = DocumentFile.fromTreeUri(this, uri)?.name
-            ?: uri.lastPathSegment
-            ?: getString(R.string.folder_not_selected)
-        binding.folderUri.text = uri.path ?: tree
-        binding.chooseFolderButton.setText(R.string.rechoose_folder)
+        binding.storagePermissionText.text = getString(
+            if (granted) R.string.storage_permission_granted else R.string.storage_permission_required,
+        )
+        binding.storagePermissionText.setTextColor(
+            ContextCompat.getColor(
+                this,
+                if (granted) R.color.text_secondary else R.color.text_primary,
+            ),
+        )
     }
 
     private fun prepareAndStart() {
-        if (preferences.sharedTreeUri.isNullOrBlank()) {
-            Toast.makeText(this, R.string.select_folder_first, Toast.LENGTH_SHORT).show()
-            folderPicker.launch(null)
+        if (!StorageAccess.hasAccess(this)) {
+            Toast.makeText(this, R.string.storage_permission_required, Toast.LENGTH_SHORT).show()
+            requestStorageAccess()
             return
         }
         if (!saveSettings(showErrors = true)) return
@@ -464,7 +582,8 @@ class MainActivity : AppCompatActivity() {
         binding.portInput.isEnabled = !busy
         binding.usernameInput.isEnabled = !busy
         binding.passwordInput.isEnabled = !busy
-        binding.chooseFolderButton.isEnabled = !busy
+        binding.shareRootButton.isEnabled = !busy
+        binding.pickFolderButton.isEnabled = !busy
         binding.publicAccessSwitch.isEnabled = !busy
         updatePublicInputs(busy)
         binding.serverButton.isEnabled = state.status != ServerStatus.STARTING

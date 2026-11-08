@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat
 import com.linkdisk.app.MainActivity
 import com.linkdisk.app.R
 import com.linkdisk.app.data.LinkDiskPreferences
+import com.linkdisk.app.data.StorageAccess
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -32,6 +33,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.net.BindException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -73,16 +75,23 @@ class WebDavService : Service() {
         startForegroundWithNotification(getString(R.string.service_starting))
         _state.value = ServerState(ServerStatus.STARTING)
         val preferences = LinkDiskPreferences(this)
-        val treeUri = preferences.sharedTreeUri
-        if (treeUri.isNullOrBlank()) {
-            failServer("请先选择要共享的目录")
+        if (!StorageAccess.hasAccess(this)) {
+            failServer(getString(R.string.storage_permission_required))
+            return START_NOT_STICKY
+        }
+        val directory = preferences.sharedDirectory?.let(::File)
+        if (directory == null) {
+            failServer(getString(R.string.choose_scope_required))
+            return START_NOT_STICKY
+        }
+        if (!StorageAccess.isWithinRoot(directory) || !directory.isDirectory) {
+            failServer(getString(R.string.shared_directory_invalid))
             return START_NOT_STICKY
         }
 
         try {
             server = WebDavServer(
-                this,
-                treeUri,
+                directory,
                 preferences.port,
                 preferences.username,
                 preferences.password,

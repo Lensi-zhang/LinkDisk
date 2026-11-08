@@ -9,9 +9,9 @@ class LinkDiskPreferences(context: Context) {
     private val preferences = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val secrets = SecretStore(appContext)
 
-    var sharedTreeUri: String?
-        get() = preferences.getString(KEY_TREE_URI, null)
-        set(value) = preferences.edit().putString(KEY_TREE_URI, value).apply()
+    var sharedDirectory: String?
+        get() = preferences.getString(KEY_SHARED_DIRECTORY, null)
+        set(value) = preferences.edit().putString(KEY_SHARED_DIRECTORY, value).apply()
 
     var port: Int
         get() = preferences.getInt(KEY_PORT, DEFAULT_PORT)
@@ -84,7 +84,7 @@ class LinkDiskPreferences(context: Context) {
 
     private companion object {
         const val PREFS_NAME = "linkdisk_settings"
-        const val KEY_TREE_URI = "tree_uri"
+        const val KEY_SHARED_DIRECTORY = "shared_directory"
         const val KEY_PORT = "port"
         const val KEY_USERNAME = "username"
         const val KEY_PASSWORD = "password"

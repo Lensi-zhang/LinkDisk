@@ -2,15 +2,23 @@
 
 LinkDisk 是一款原生 Kotlin Android WebDAV 文件共享应用，可通过局域网或官方 FRP 隧道分享手机中的文档、照片和下载内容。
 
-**当前版本：1.3** · **最低系统：Android 7.0（API 24）**
+**当前版本：1.4** · **最低系统：Android 7.0（API 24）**
 
 ## 下载
 
-[从 GitHub Releases 下载 LinkDisk 1.3 APK](https://github.com/Lensi-zhang/LinkDisk/releases/download/v1.3/LinkDisk-1.3.apk)
+[从 GitHub Releases 下载 LinkDisk 1.4 APK](https://github.com/Lensi-zhang/LinkDisk/releases/download/v1.4/LinkDisk-1.4.apk)
 
-SHA-256：`BE133462759A7652F73DD8C2BFA13A8CD59FD510B263251FA07D9860DA53E14A`
+SHA-256：`D76C3C222F2933E74BC82B0C2621CDA368AAB3F79FA28CCA73CAB610ABD69481`
 
 安装前请核对以上校验值。Android 可能需要在系统设置中允许当前浏览器或文件管理器安装未知来源应用。
+
+## 1.4 更新说明
+
+- 改用“所有文件访问”权限，可共享整个内部存储，也可以仅共享指定的子目录。
+- 选择整个内部存储前必须阅读风险提示和免责声明并主动确认；取消会保留原共享范围。
+- WebDAV 文件操作改为直接文件访问，服务启动前会重新校验存储权限和共享目录。
+- 从 1.3 升级可覆盖安装，但旧版 SAF 目录授权不会迁移，需要重新授权并选择共享范围。
+- Android 11 及以上版本仍受系统限制，无法访问其他应用的 `Android/data` 和 `Android/obb` 内容。
 
 ## 1.3 更新说明
 
@@ -29,7 +37,7 @@ SHA-256：`BE133462759A7652F73DD8C2BFA13A8CD59FD510B263251FA07D9860DA53E14A`
 
 ## 功能
 
-- 使用系统存储访问框架（SAF）选择共享目录，无需存储权限。
+- 通过“所有文件访问”权限共享整个内部存储或指定子目录，根目录选择带不可跳过的风险确认。
 - 提供 WebDAV `OPTIONS`、`PROPFIND`、`GET`、`HEAD`、`PUT`、`DELETE`、`MKCOL`、`COPY`、`MOVE`、`LOCK` 和 `UNLOCK` 支持。
 - 默认启用用户名和密码认证，公网访问要求至少 16 位密码。
 - 内置 Windows / macOS / Linux 挂载教程，自动展示当前真实地址并支持一键复制。
@@ -44,7 +52,7 @@ SHA-256：`BE133462759A7652F73DD8C2BFA13A8CD59FD510B263251FA07D9860DA53E14A`
 
 ### 局域网共享
 
-1. 打开 LinkDisk，选择要共享的目录。
+1. 打开 LinkDisk，按界面引导授予“所有文件访问”权限，然后选择整个内部存储或指定子目录；选择整个内部存储时需确认风险提示。
 2. 设置端口和认证信息。默认用户名为 `admin`，首次运行会生成随机密码。
 3. 启动服务，在与手机同一局域网的电脑中访问界面显示的地址。
 4. 可使用支持 WebDAV 的文件管理器，或 Windows“映射网络驱动器”。
@@ -65,7 +73,8 @@ SHA-256：`BE133462759A7652F73DD8C2BFA13A8CD59FD510B263251FA07D9860DA53E14A`
 - **HTTP 不加密传输内容或 Basic 认证凭据，公网使用时应优先选择 HTTPS。** 仅在可信网络中使用 HTTP。
 - WebDAV 密码和 FRP 原始配置使用 Android Keystore 保护的 AES-GCM 加密保存。
 - 配置识别错误、应用状态和日志不应包含 Token、密码或整段配置。
-- 分享目录即授予客户端对该目录内容的读写能力；请仅选择需要分享的目录，并在使用后停止服务。
+- 分享目录即授予客户端对该目录内容的读写和删除能力；共享整个内部存储风险较高，请优先仅选择需要分享的子目录，并在使用后停止服务。
+- Android 11 及以上版本即使授予“所有文件访问”，系统仍会限制访问其他应用的 `Android/data` 和 `Android/obb` 内容。
 - 从其他来源安装 APK 前，请验证签名和哈希，避免安装被篡改的包。
 
 ## 从源码构建
