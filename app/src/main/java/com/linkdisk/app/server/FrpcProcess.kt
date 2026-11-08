@@ -1,4 +1,4 @@
-package com.lazybody.linkdisk.server
+package com.linkdisk.app.server
 
 import android.content.Context
 import kotlinx.coroutines.CancellationException

@@ -1,4 +1,4 @@
-package com.lazybody.linkdisk.server
+package com.linkdisk.app.server
 
 import java.net.URI
 import java.net.URISyntaxException

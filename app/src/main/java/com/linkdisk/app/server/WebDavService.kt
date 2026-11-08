@@ -1,4 +1,4 @@
-package com.lazybody.linkdisk.server
+package com.linkdisk.app.server
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -15,9 +15,9 @@ import android.os.PowerManager
 import android.util.Base64
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import com.lazybody.linkdisk.MainActivity
-import com.lazybody.linkdisk.R
-import com.lazybody.linkdisk.data.LinkDiskPreferences
+import com.linkdisk.app.MainActivity
+import com.linkdisk.app.R
+import com.linkdisk.app.data.LinkDiskPreferences
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -368,8 +368,8 @@ class WebDavService : Service() {
         private const val PUBLIC_PROBE_RETRY_MS = 3_000L
         private const val PUBLIC_PROBE_TIMEOUT_MS = 8_000
         private const val MAX_PUBLIC_ERROR_CHARS = 1_200
-        const val ACTION_START = "com.lazybody.linkdisk.action.START"
-        const val ACTION_STOP = "com.lazybody.linkdisk.action.STOP"
+        const val ACTION_START = "com.linkdisk.app.action.START"
+        const val ACTION_STOP = "com.linkdisk.app.action.STOP"
 
         private val _state = MutableStateFlow(ServerState())
         val state: StateFlow<ServerState> = _state.asStateFlow()

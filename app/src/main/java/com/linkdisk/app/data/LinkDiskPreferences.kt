@@ -1,7 +1,7 @@
-package com.lazybody.linkdisk.data
+package com.linkdisk.app.data
 
 import android.content.Context
-import com.lazybody.linkdisk.server.TunnelConfig
+import com.linkdisk.app.server.TunnelConfig
 import java.security.SecureRandom
 
 class LinkDiskPreferences(context: Context) {

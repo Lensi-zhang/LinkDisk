@@ -1,4 +1,4 @@
-package com.lazybody.linkdisk.server
+package com.linkdisk.app.server
 
 object WebDavPath {
     fun segments(path: String): List<String> {

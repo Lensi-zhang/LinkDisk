@@ -16,11 +16,11 @@ def releaseSigningConfigured = [
 ].every { !localProperties.getProperty(it, '').isEmpty() }
 
 android {
-    namespace 'com.lazybody.linkdisk'
+    namespace 'com.linkdisk.app'
     compileSdk 34
 
     defaultConfig {
-        applicationId 'com.lazybody.linkdisk'
+        applicationId 'com.linkdisk.app'
         minSdk 24
         targetSdk 34
         versionCode 3

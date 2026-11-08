@@ -1,4 +1,4 @@
-package com.lazybody.linkdisk.server
+package com.linkdisk.app.server
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

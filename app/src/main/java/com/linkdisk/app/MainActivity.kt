@@ -1,4 +1,4 @@
-package com.lazybody.linkdisk
+package com.linkdisk.app
 
 import android.Manifest
 import android.content.ClipData
@@ -20,17 +20,17 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.lazybody.linkdisk.data.LinkDiskPreferences
-import com.lazybody.linkdisk.databinding.ActivityMainBinding
-import com.lazybody.linkdisk.server.FrpcConfigInspector
-import com.lazybody.linkdisk.server.FrpcInspectionResult
-import com.lazybody.linkdisk.server.FrpcTunnelCandidate
-import com.lazybody.linkdisk.server.PublicStatus
-import com.lazybody.linkdisk.server.ServerState
-import com.lazybody.linkdisk.server.ServerStatus
-import com.lazybody.linkdisk.server.TunnelConfig
-import com.lazybody.linkdisk.server.WebDavMountGuide
-import com.lazybody.linkdisk.server.WebDavService
+import com.linkdisk.app.data.LinkDiskPreferences
+import com.linkdisk.app.databinding.ActivityMainBinding
+import com.linkdisk.app.server.FrpcConfigInspector
+import com.linkdisk.app.server.FrpcInspectionResult
+import com.linkdisk.app.server.FrpcTunnelCandidate
+import com.linkdisk.app.server.PublicStatus
+import com.linkdisk.app.server.ServerState
+import com.linkdisk.app.server.ServerStatus
+import com.linkdisk.app.server.TunnelConfig
+import com.linkdisk.app.server.WebDavMountGuide
+import com.linkdisk.app.server.WebDavService
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 import java.io.InputStream

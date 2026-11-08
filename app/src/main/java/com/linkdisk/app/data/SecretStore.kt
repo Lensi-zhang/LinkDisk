@@ -1,4 +1,4 @@
-package com.lazybody.linkdisk.data
+package com.linkdisk.app.data
 
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
@@ -91,7 +91,7 @@ class SecretStore(context: Context) {
     private companion object {
         const val SECRETS_PREFS_NAME = "linkdisk_secrets"
         const val ANDROID_KEY_STORE = "AndroidKeyStore"
-        const val KEY_ALIAS = "com.lazybody.linkdisk.secrets.v1"
+        const val KEY_ALIAS = "com.linkdisk.app.secrets.v1"
         const val TRANSFORMATION = "AES/GCM/NoPadding"
         const val AES_KEY_SIZE_BITS = 256
         const val GCM_IV_SIZE_BYTES = 12
