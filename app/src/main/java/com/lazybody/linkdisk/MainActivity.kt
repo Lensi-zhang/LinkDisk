@@ -18,6 +18,7 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.lazybody.linkdisk.data.LinkDiskPreferences
 import com.lazybody.linkdisk.databinding.ActivityMainBinding
@@ -28,6 +29,7 @@ import com.lazybody.linkdisk.server.PublicStatus
 import com.lazybody.linkdisk.server.ServerState
 import com.lazybody.linkdisk.server.ServerStatus
 import com.lazybody.linkdisk.server.TunnelConfig
+import com.lazybody.linkdisk.server.WebDavMountGuide
 import com.lazybody.linkdisk.server.WebDavService
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
@@ -45,6 +47,8 @@ class MainActivity : AppCompatActivity() {
     private var selectionRequired = false
     private var changingConfig = false
     private var applyingTunnel = false
+    private var currentMountGuide: WebDavMountGuide? = null
+    private var expandedGuidePlatform: GuidePlatform? = null
 
     private val folderPicker = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) persistFolder(uri)
@@ -74,6 +78,7 @@ class MainActivity : AppCompatActivity() {
         bindActions()
         restoreConfigInspection()
         updatePublicInputs(busy = false)
+        renderMountGuide()
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -134,6 +139,29 @@ class MainActivity : AppCompatActivity() {
         }
         binding.copyAddressButton.setOnClickListener { copyAddress(currentState.url) }
         binding.copyPublicAddressButton.setOnClickListener { copyAddress(currentState.publicUrl) }
+        binding.guideSourceGroup.check(R.id.guideLocalSourceButton)
+        binding.guideSourceGroup.addOnButtonCheckedListener { _, _, isChecked ->
+            if (isChecked) renderMountGuide()
+        }
+        binding.guideWindowsToggle.setOnClickListener { toggleGuidePlatform(GuidePlatform.WINDOWS) }
+        binding.guideMacosToggle.setOnClickListener { toggleGuidePlatform(GuidePlatform.MACOS) }
+        binding.guideLinuxToggle.setOnClickListener { toggleGuidePlatform(GuidePlatform.LINUX) }
+        binding.copyGuideRootButton.setOnClickListener {
+            copyAddress(currentMountGuide?.rootUrl.orEmpty())
+        }
+        binding.copyGuideWindowsAddressButton.setOnClickListener {
+            copyAddress(currentMountGuide?.rootUrl.orEmpty())
+        }
+        binding.copyGuideWindowsUncButton.setOnClickListener {
+            copyAddress(currentMountGuide?.windowsUnc.orEmpty())
+        }
+        binding.copyGuideMacosAddressButton.setOnClickListener {
+            copyAddress(currentMountGuide?.rootUrl.orEmpty())
+        }
+        binding.copyGuideLinuxAddressButton.setOnClickListener {
+            copyAddress(currentMountGuide?.linuxUrl.orEmpty())
+        }
+        setGuidePlatformExpanded(null)
     }
 
     private fun pasteConfig() {
@@ -489,6 +517,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun updatePublicInputs(busy: Boolean) {
         val enabled = !busy && binding.publicAccessSwitch.isChecked
+        binding.publicConfigContent.visibility =
+            if (binding.publicAccessSwitch.isChecked) View.VISIBLE else View.GONE
         binding.frpcConfigInput.isEnabled = enabled
         binding.publicUrlInput.isEnabled = enabled
         binding.pasteConfigButton.isEnabled = enabled
@@ -520,6 +550,88 @@ class MainActivity : AppCompatActivity() {
             (state.publicStatus == PublicStatus.ERROR || state.publicStatus == PublicStatus.RECONNECTING)
         binding.publicError.visibility = if (showError) View.VISIBLE else View.GONE
         binding.publicError.text = state.publicError
+        renderMountGuide()
+    }
+
+    private fun renderMountGuide() {
+        val publicGuide = WebDavMountGuide.fromRootUrl(currentState.publicUrl)
+        val publicAvailable = binding.publicAccessSwitch.isChecked &&
+            currentState.publicStatus != PublicStatus.OFF && publicGuide != null
+        binding.guidePublicSourceButton.visibility = if (publicAvailable) View.VISIBLE else View.GONE
+        if (!publicAvailable && binding.guideSourceGroup.checkedButtonId == R.id.guidePublicSourceButton) {
+            binding.guideSourceGroup.check(R.id.guideLocalSourceButton)
+        }
+
+        val showPublic = publicAvailable &&
+            binding.guideSourceGroup.checkedButtonId == R.id.guidePublicSourceButton
+        val guide = if (showPublic) {
+            publicGuide
+        } else if (currentState.status == ServerStatus.RUNNING) {
+            WebDavMountGuide.fromRootUrl(currentState.url)
+        } else {
+            null
+        }
+        currentMountGuide = guide
+
+        binding.guideLocalDescription.visibility = if (showPublic) View.GONE else View.VISIBLE
+        binding.guidePublicDescription.visibility = if (showPublic) View.VISIBLE else View.GONE
+        val waiting = getString(R.string.guide_address_waiting)
+        binding.guideRootAddress.text = guide?.rootUrl ?: waiting
+        binding.guideWindowsAddress.text = guide?.rootUrl ?: waiting
+        binding.guideWindowsUnc.text = guide?.windowsUnc ?: waiting
+        binding.guideMacosAddress.text = guide?.rootUrl ?: waiting
+        binding.guideLinuxAddress.text = guide?.linuxUrl ?: waiting
+        val addressAvailable = guide != null
+        binding.copyGuideRootButton.isEnabled = addressAvailable
+        binding.copyGuideWindowsAddressButton.isEnabled = addressAvailable
+        binding.copyGuideWindowsUncButton.isEnabled = addressAvailable
+        binding.copyGuideMacosAddressButton.isEnabled = addressAvailable
+        binding.copyGuideLinuxAddressButton.isEnabled = addressAvailable
+    }
+
+    private fun toggleGuidePlatform(platform: GuidePlatform) {
+        setGuidePlatformExpanded(if (expandedGuidePlatform == platform) null else platform)
+    }
+
+    private fun setGuidePlatformExpanded(platform: GuidePlatform?) {
+        expandedGuidePlatform = platform
+        updateGuidePlatform(
+            binding.guideWindowsToggle,
+            binding.guideWindowsContent,
+            R.string.guide_windows,
+            platform == GuidePlatform.WINDOWS,
+        )
+        updateGuidePlatform(
+            binding.guideMacosToggle,
+            binding.guideMacosContent,
+            R.string.guide_macos,
+            platform == GuidePlatform.MACOS,
+        )
+        updateGuidePlatform(
+            binding.guideLinuxToggle,
+            binding.guideLinuxContent,
+            R.string.guide_linux,
+            platform == GuidePlatform.LINUX,
+        )
+    }
+
+    private fun updateGuidePlatform(
+        toggle: MaterialButton,
+        content: View,
+        titleResource: Int,
+        expanded: Boolean,
+    ) {
+        content.visibility = if (expanded) View.VISIBLE else View.GONE
+        toggle.text = getString(
+            if (expanded) R.string.guide_platform_expanded else R.string.guide_platform_collapsed,
+            getString(titleResource),
+        )
+    }
+
+    private enum class GuidePlatform {
+        WINDOWS,
+        MACOS,
+        LINUX,
     }
 
     private class ConfigImportException(val messageResource: Int) : Exception()

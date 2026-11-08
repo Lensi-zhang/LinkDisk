@@ -2,15 +2,20 @@
 
 LinkDisk 是一款原生 Kotlin Android WebDAV 文件共享应用，可通过局域网或官方 FRP 隧道分享手机中的文档、照片和下载内容。
 
-**当前版本：1.1** · **最低系统：Android 7.0（API 24）**
+**当前版本：1.2** · **最低系统：Android 7.0（API 24）**
 
 ## 下载
 
-[从 GitHub Releases 下载 LinkDisk 1.1 APK](https://github.com/Lensi-zhang/LinkDisk/releases/download/v1.1/LinkDisk-1.1.apk)
+[从 GitHub Releases 下载 LinkDisk 1.2 APK](https://github.com/Lensi-zhang/LinkDisk/releases/download/v1.2/LinkDisk-1.2.apk)
 
-SHA-256：`66A58817689D765782FCB438A846BC1CE4EA67986CA1E5EA4D7F2B00E025A406`
+SHA-256：`B397D2A1E5EE710121D74480AB5643EEE4D50C95D997B6E6942AADB271621942`
 
 安装前请核对以上校验值。Android 可能需要在系统设置中允许当前浏览器或文件管理器安装未知来源应用。
+
+## 1.2 更新说明
+
+- 重写内置 WebDAV 挂载教程：自动展示当前真实地址，提供 Windows / macOS / Linux 分平台分步指导和常见失败排查，各平台地址支持一键复制。
+- 公网未启用时自动隐藏公网教程；公网配置区域随公网开关整体折叠，界面更简洁。
 
 ## 1.1 更新说明
 
@@ -22,6 +27,7 @@ SHA-256：`66A58817689D765782FCB438A846BC1CE4EA67986CA1E5EA4D7F2B00E025A406`
 - 使用系统存储访问框架（SAF）选择共享目录，无需存储权限。
 - 提供 WebDAV `OPTIONS`、`PROPFIND`、`GET`、`HEAD`、`PUT`、`DELETE`、`MKCOL`、`COPY`、`MOVE`、`LOCK` 和 `UNLOCK` 支持。
 - 默认启用用户名和密码认证，公网访问要求至少 16 位密码。
+- 内置 Windows / macOS / Linux 挂载教程，自动展示当前真实地址并支持一键复制。
 - 支持粘贴或导入官方 `frpc` TOML 配置及旧版 INI 配置。
 - 自动识别 HTTP、HTTPS、TCP 隧道、本地端口和公网地址。
 - 单候选自动应用，多候选由用户显式选择，并同步 WebDAV 端口。
